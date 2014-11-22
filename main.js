@@ -1,15 +1,7 @@
 var game;
-var snakeHead; //head of snake sprite
-var snakeSection = new Array(); //array of sprites that make the snake body sections
-var snakePath = new Array(); //arrary of positions(points) that have to be stored for the path the sections follow
-var numSnakeSections = 4; //number of snake body sections
-var snakeSpacer = 14; //parameter that sets the spacing between sections
 var cursors;
-var bodyMover;
-var isPaused = false;
-var pauseButton;
-var storedVelocity = {x: 0, y: 0};
 var ball;
+var snakes = [];
 
 window.onload = function() {
 
@@ -40,113 +32,132 @@ window.onload = function() {
 		ball.body.setCollisionGroup(ballCollisionGroup);
 		ball.body.collides([snakeCollisionGroup]);
 
-		// add the snake head
-		snakeHead = game.add.sprite(100, 300, 'ball');
-		snakeHead.anchor.setTo(0.5, 0.5);
-		game.physics.p2.enable(snakeHead);
-
-		snakeHead.body.fixedRotation = true;
-		snakeHead.body.setCollisionGroup(snakeCollisionGroup);
-		snakeHead.body.collides(ballCollisionGroup, hitBall, this);
-
-		//  add the snake body
-		for (var i = 1; i < numSnakeSections; i++)
-		{
-			snakeSection[i] = game.add.sprite(100, 300, 'ball');
-			snakeSection[i].anchor.setTo(0.5, 0.5);
-		}
-
-		//  init the snake path array
-		for (var i = 0; i <= numSnakeSections * snakeSpacer; i++)
-		{
-			snakePath[i] = new Phaser.Point(100, 300);
-		}
-
-		// init the body movement (trails after the head)
-		bodyMover = game.time.create(false);
-		bodyMover.loop(Phaser.Timer.SECOND/25, moveSnake, this);
-		bodyMover.start();
-
 		// init keyboard cursors
 		cursors = game.input.keyboard.createCursorKeys();
 
-		// init the pause button using spacebar
-		pauseButton = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
-		game.input.keyboard.addKeyCapture([Phaser.Keyboard.SPACEBAR]);
-
-		pauseButton.onDown.add(pauseGame, game);
-
-		// start the snake
-		game.time.events.add(Phaser.Timer.SECOND, startSnake, this);
+		// add the snake head
+		var snake = new SnakeModel(game, {x: 100, y: 300}, cursors);
+		snake.setCollision(snakeCollisionGroup, ballCollisionGroup);
+		snakes.push(snake);
 	}
 
 	function update() {
-		// reset the velocity of the snake on keypress
-		snakeHead.body.setZeroVelocity();
-
-		if (isPaused) {
-			return false;
+		for (var i = 0; i < snakes.length; i++) {
+			snakes[i].update();
 		}
 
-		if (cursors.up.isDown) {
-			snakeHead.body.moveUp(50);
-		} else if (cursors.down.isDown) {
-			snakeHead.body.moveDown(50);
-		} else if (cursors.left.isDown) {
-			snakeHead.body.moveLeft(50);
-		} else if (cursors.right.isDown) {
-			snakeHead.body.moveRight(50);
-		}
-	}
-
-	function startSnake() {
-		console.log("snake should start startSnake");
-		snakeHead.body.moveDown(400);
-	}
-
-	function hitBall() {
-		console.log("hit the ball");
-	}
-
-	function pauseGame() {
-		if (isPaused) {
-			snakeHead.body.velocity.y = storedVelocity.y;
-			snakeHead.body.velocity.x = storedVelocity.x;
-			bodyMover.resume();
-			isPaused = false;
-		} else {
-			storedVelocity.y = snakeHead.body.velocity.y;
-			storedVelocity.x = snakeHead.body.velocity.x;
-			snakeHead.body.setZeroVelocity();
-			bodyMover.pause();
-			isPaused = true;
-		}
-	}
-
-	function moveSnake() {
-		// Everytime the snake head moves, insert the new location at the start of the array,
-		// and knock the last position off the end
-
-		var part = snakePath.pop();
-		part.setTo(snakeHead.x, snakeHead.y);
-
-		snakePath.unshift(part);
-
-		for (var i = 1; i < numSnakeSections; i++)
-		{
-			snakeSection[i].x = (snakePath[i * snakeSpacer]).x;
-			snakeSection[i].y = (snakePath[i * snakeSpacer]).y;
-		}
 	}
 
 	function render() {
-
-		game.debug.spriteInfo(snakeHead, 32, 32);
-
-	}
-
-	function buildSnake() {
-
+		for (var i = 0; i < snakes.length; i++) {
+			game.debug.spriteInfo(snakes[i]._head, 32, 32);
+		}
 	}
 };
+var SnakeModel = function(){
+	this._construct.apply(this, arguments);
+};
+
+SnakeModel.prototype = {
+	_head: null,
+	_segments: [],
+	_path: [],
+	_segmentCount: 4,
+	_segmentSpacing: 14,
+	_gameContext: null,
+	_position: {x: 400, y: 300},
+	_direction: 'down',
+	_started: false,
+	_cursors: null,
+	_bodyLoop: null,
+	_construct: function(game, position, cursors) {
+
+		this._gameContext = game;
+
+		this._position = position;
+
+		this._cursors = cursors;
+
+		this.initHead();
+		this.initBody();
+	},
+	initHead: function() {
+
+		this._head = this._gameContext.add.sprite(this._position.x, this._position.y, 'ball');
+		this._head.anchor.setTo(0.5, 0.5);
+		this._gameContext.physics.p2.enable(this._head);
+
+		this._head.body.fixedRotation = true;
+	},
+	initBody: function() {
+
+		//  add the snake body
+		for (var i = 1; i < this._segmentCount; i++)
+		{
+			this._segments[i] = this._gameContext.add.sprite(this._position.x, this._position.y, 'ball');
+			this._segments[i].anchor.setTo(0.5, 0.5);
+		}
+
+		//  init the snake path array
+		for (var i = 0; i <= this._segmentCount * this._segmentSpacing; i++)
+		{
+			this._path[i] = new Phaser.Point(this._position.x, this._position.y);
+		}
+
+		this.initBodyMovement();
+	},
+	setCollision: function(snakeCollisionGroup, collideWith) {
+		var self = this;
+		this._head.body.setCollisionGroup(snakeCollisionGroup);
+		this._head.body.collides(collideWith, function(){
+			Ball.onHit(self);
+		}, Ball);
+	},
+	initBodyMovement: function() {
+		var self = this;
+		this._bodyLoop = game.time.create(false);
+		this._bodyLoop.loop(Phaser.Timer.SECOND / 25, function(){
+			self.moveBody();
+		}, this);
+		this._bodyLoop.start();
+	},
+	moveBody: function() {
+		var part = this._path.pop();
+		part.setTo(this._head.x, this._head.y);
+
+		this._path.unshift(part);
+
+		for (var i = 1; i < this._segmentCount; i++)
+		{
+			this._segments[i].x = (this._path[i * this._segmentSpacing]).x;
+			this._segments[i].y = (this._path[i * this._segmentSpacing]).y;
+		}
+	},
+	update: function() {
+		if (!this._started) {
+			this._head.body.moveDown(50);
+			this._started = true;
+		}
+
+		if (this._cursors.up.isDown) {
+			this._head.body.setZeroVelocity();
+			this._head.body.moveUp(50);
+		} else if (this._cursors.down.isDown) {
+			this._head.body.setZeroVelocity();
+			this._head.body.moveDown(50);
+		} else if (this._cursors.left.isDown) {
+			this._head.body.setZeroVelocity();
+			this._head.body.moveLeft(50);
+		} else if (this._cursors.right.isDown) {
+			this._head.body.setZeroVelocity();
+			this._head.body.moveRight(50);
+		}
+	}
+}
+
+var Ball = {
+	onHit: function(snake) {
+		console.log('ball was hit by', snake);
+	}
+}
 
